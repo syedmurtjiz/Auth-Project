@@ -1,54 +1,45 @@
-// controllers/authController.js
-const User = require('../models/usersModel');
-const jwt = require('jsonwebtoken');
-const { doHash, comparePassword } = require('../utils/hashing');
+require('dotenv').config(); // Load environment variables from .env file
+const express = require('express');
+const bodyParser = require('body-parser');
+const mongoose = require('mongoose');
+const sendMail = require('../middlewares/sendMail'); // Ensure the path is correct
+const authRouter = require('../routers/authRouter'); // Correctly import the router
 
-// Sign up logic
-exports.signup = async (req, res) => {
+const app = express();
+
+// Middleware to parse JSON requests
+app.use(bodyParser.json());
+
+// MongoDB Connection
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+  .then(() => {
+    console.log('Connected to MongoDB');
+  })
+  .catch((error) => {
+    console.error('Error connecting to MongoDB:', error.message);
+  });
+
+// Use the authRouter for routes related to authentication
+app.use('/api/auth', authRouter);  // Make sure this path is correct
+
+// POST route to send an email
+app.post('/api/send-email', async (req, res) => {
+  const { email, subject, message } = req.body;
+
   try {
-    const { email, password } = req.body;
-    
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ message: 'Email already in use' });
-    }
-
-    // Hash password
-    const hashedPassword = await doHash(password);
-
-    // Create new user
-    const newUser = new User({ email, password: hashedPassword });
-    await newUser.save();
-
-    res.status(201).json({ message: 'User registered successfully' });
+    // Call the sendMail function
+    await sendMail(email, subject, message);
+    res.status(200).json({ message: 'Email sent successfully' });
   } catch (error) {
-    res.status(500).json({ message: 'Error registering user', error: error.message });
+    res.status(500).json({ message: 'Error sending email', error: error.message });
   }
-};
+});
 
-// Sign in logic
-exports.signin = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    
-    // Check if user exists
-    const user = await User.findOne({ email }).select('+password');
-    if (!user) {
-      return res.status(400).json({ message: 'Invalid credentials' });
-    }
-
-    // Compare password
-    const isMatch = await comparePassword(password, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid credentials' });
-    }
-
-    // Generate JWT token
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-
-    res.status(200).json({ message: 'Login successful', token });
-  } catch (error) {
-    res.status(500).json({ message: 'Error logging in', error: error.message });
-  }
-};
+// Server setup
+const PORT = process.env.PORT || 8000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
