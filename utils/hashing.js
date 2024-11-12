@@ -1,26 +1,24 @@
 const bcrypt = require('bcryptjs');
 
-const doHash = async (password, saltRounds) => {
-  return bcrypt.hash(password, saltRounds);
-};
-
-module.exports = { doHash };
-
-// Hash the password with a salt rounds of 10
-exports.doHash = async (password, saltRounds) => {
+// Hash the password with salt rounds (default to 10)
+exports.doHash = async (password, saltRounds = 10) => {
   try {
     const hashedPassword = await bcrypt.hash(password, saltRounds);
     return hashedPassword;
   } catch (error) {
-    throw new Error('Error hashing password');
+    throw new Error('Error hashing password: ' + error.message);
   }
 };
 
-// Compare the entered password with the hashed password
+// Compare the entered password with the stored (hashed) password
 exports.comparePassword = async (enteredPassword, storedPassword) => {
   try {
-    return await bcrypt.compare(enteredPassword, storedPassword);
+    const isMatch = await bcrypt.compare(enteredPassword, storedPassword);
+    if (!isMatch) {
+      throw new Error('Incorrect password');
+    }
+    return isMatch;
   } catch (error) {
-    throw new Error('Error comparing password');
+    throw new Error('Error comparing password: ' + error.message);
   }
 };

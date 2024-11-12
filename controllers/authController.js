@@ -1,88 +1,54 @@
-const Joi = require('joi');
-const bcrypt = require('bcryptjs');
+// controllers/authController.js
 const User = require('../models/usersModel');
 const jwt = require('jsonwebtoken');
+const { doHash, comparePassword } = require('../utils/hashing');
 
-// Validation schema for signup
-const signupSchema = Joi.object({
-  email: Joi.string()
-    .email({ tlds: { allow: ['com', 'net'] } })
-    .min(6)
-    .max(60)
-    .required()
-    .messages({
-      "string.email": "Invalid email format.",
-      "any.required": "Email is required."
-    }),
-  password: Joi.string()
-    .pattern(new RegExp("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$"))
-    .required()
-    .messages({
-      "string.pattern.base": "Password must contain at least one uppercase letter, one lowercase letter, and one digit, and be at least 8 characters long.",
-      "any.required": "Password is required."
-    })
-});
-
-// Signup Controller
+// Sign up logic
 exports.signup = async (req, res) => {
   try {
-    const { error } = signupSchema.validate(req.body);
-    if (error) {
-      return res.status(400).json({ success: false, message: error.details[0].message });
-    }
-
     const { email, password } = req.body;
+    
+    // Check if user already exists
     const existingUser = await User.findOne({ email });
-
     if (existingUser) {
-      return res.status(400).json({ success: false, message: "User already exists" });
+      return res.status(400).json({ message: 'Email already in use' });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = new User({
-      email,
-      password: hashedPassword
-    });
+    // Hash password
+    const hashedPassword = await doHash(password);
 
+    // Create new user
+    const newUser = new User({ email, password: hashedPassword });
     await newUser.save();
-    res.status(201).json({ success: true, message: "User created successfully" });
+
+    res.status(201).json({ message: 'User registered successfully' });
   } catch (error) {
-    console.error("Signup error:", error);
-    res.status(500).json({ success: false, message: "Internal Server Error" });
+    res.status(500).json({ message: 'Error registering user', error: error.message });
   }
 };
 
-// Signin Controller
+// Sign in logic
 exports.signin = async (req, res) => {
   try {
     const { email, password } = req.body;
-
-    // Check if email and password are provided
-    if (!email || !password) {
-      return res.status(400).json({ success: false, message: "Email and password are required" });
-    }
-
-    const user = await User.findOne({ email });
+    
+    // Check if user exists
+    const user = await User.findOne({ email }).select('+password');
     if (!user) {
-      return res.status(400).json({ success: false, message: "Invalid email or password" });
+      return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    // Compare the password with the hashed password stored in the database
-    const isMatch = await bcrypt.compare(password, user.password);
+    // Compare password
+    const isMatch = await comparePassword(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ success: false, message: "Invalid email or password" });
+      return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    // Generate JWT token if credentials are correct
+    // Generate JWT token
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-    res.status(200).json({
-      success: true,
-      message: "Signin successful",
-      token
-    });
+    res.status(200).json({ message: 'Login successful', token });
   } catch (error) {
-    console.error("Signin error:", error);
-    res.status(500).json({ success: false, message: "Internal Server Error" });
+    res.status(500).json({ message: 'Error logging in', error: error.message });
   }
 };
