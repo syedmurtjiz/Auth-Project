@@ -11,4 +11,9 @@ router.post('/signup', validateRequest(signupSchema), signup);
 // Sign in route with validation
 router.post('/signin', validateRequest(signinSchema), signin);
 
+// Signout route
+router.post('/signout', (req, res) => {
+  res.status(200).json({ message: 'Logged out successfully' });
+});
+
 module.exports = router;
