@@ -1,4 +1,3 @@
-// middleware/validator.js
 const Joi = require("joi");
 
 // Sign up validation schema
